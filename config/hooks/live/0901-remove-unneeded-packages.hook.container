@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -e
+
+apt -y autoremove alsa-topology-conf build-essential openssh-client cpp wget wireless-regdb systemd-timesyncd
+

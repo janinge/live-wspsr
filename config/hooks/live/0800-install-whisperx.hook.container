@@ -1,0 +1,55 @@
+#!/bin/bash
+
+set -e
+
+source /etc/HF_TOKEN
+
+rm /etc/HF_TOKEN
+
+# Create a regular user named whisper for the installation
+useradd -m -s /usr/bin/bash whisper
+
+# Set up Python virtual environment
+su - whisper -c "python3 -m venv . --system-site-packages"
+
+# Install a static build of ffmpeg
+wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+tar -xf ffmpeg.tar.xz --wildcards --no-anchored --transform='s/.*\///' '*ffmpeg'
+mv ffmpeg /home/whisper/bin/
+chmod +x /home/whisper/bin/ffmpeg
+rm ffmpeg.tar.xz
+
+# Make sure everything is owned by whisper in its home directory
+chown -R whisper:whisper /home/whisper/
+
+# Install PyTorch
+echo "Installing PyTorch..."
+su - whisper -c 'source bin/activate; pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu'
+
+# Install WhisperX
+echo "Installing WhisperX..."
+su - whisper -c 'source bin/activate; pip3 install pydantic\<2 git+https://github.com/m-bain/whisperx.git'
+
+# Fetch models and build Python cache
+echo "Fetching models..."
+su - whisper -c "source bin/activate; mkdir samples; cd samples; wget -O enkle-ting.mp3 https://datasets-server.huggingface.co/assets/NbAiLab/NPSC/--/16K_mp3_nynorsk/train/39/audio/audio.mp3; whisperx --language no --model large-v2 --compute_type float32 --align_model NbAiLab/wav2vec2-xlsr-300m-norwegian --diarize --hf_token $HF_TOKEN enkle-ting.mp3" || :
+
+# Upgrade models to current version
+su - whisper -c 'source bin/activate; wget -O upgrade_checkpoint.py https://raw.githubusercontent.com/Lightning-AI/lightning/master/src/lightning/pytorch/utilities/upgrade_checkpoint.py; python -m upgrade_checkpoint --map-to-cpu .cache/torch/whisperx-vad-segmentation.bin; python -m upgrade_checkpoint --map-to-cpu .cache/torch/pyannote/models--pyannote--segmentation/snapshots/*/pytorch_model.bin; rm .cache/torch/whisperx-vad-segmentation.bak .cache/torch/pyannote/models--pyannote--segmentation/snapshots/*/pytorch_model.bak'
+
+# Patch out hardcoded check for SHA256 checksum (won't match after upgrade)
+cd /home/whisper/
+patch -d lib/python3.11/site-packages/whisperx/ <<'EOF'
+--- lib/python3.11/site-packages/whisperx/vad.py.checksum       2023-07-12 13:41:24.105247856 +0000
++++ lib/python3.11/site-packages/whisperx/vad.py        2023-07-12 13:41:40.521313688 +0000
+@@ -43,7 +43,7 @@
+                     loop.update(len(buffer))
+ 
+     model_bytes = open(model_fp, "rb").read()
+-    if hashlib.sha256(model_bytes).hexdigest() != VAD_SEGMENTATION_URL.split('/')[-2]:
++    if False and hashlib.sha256(model_bytes).hexdigest() != VAD_SEGMENTATION_URL.split('/')[-2]:
+         raise RuntimeError(
+             "Model has been downloaded but the SHA256 checksum does not not match. Please retry loading the model."
+         )
+EOF
+

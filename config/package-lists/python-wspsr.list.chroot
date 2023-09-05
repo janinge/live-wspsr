@@ -1,0 +1,6 @@
+python3-pymediainfo
+python3-magic
+python3-watchdog
+python3-aiostream
+libarchive-tools
+libarchive-dev

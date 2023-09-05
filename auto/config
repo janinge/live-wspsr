@@ -1,0 +1,21 @@
+#!/bin/sh
+
+lb config noauto \
+     --architectures amd64 \
+     --distribution bookworm \
+     --debootstrap-options "--arch=amd64 --variant=minbase" \
+     --image-name whisper \
+     --iso-application Whisper \
+     --bootappend-live "boot=live components=hostname,locales,tzdata,keyboard-configuration,user-setup,sudo,policykit,systemd,apport username=whisper hostname=whisper locale=nb_NO.UTF-8 keyboard-layouts=no nopersistence overlay-size=256m" \
+    --apt-indices false \
+    --firmware-chroot false \
+    --chroot-squashfs-compression-type zstd \
+     "${@}"
+
+if [ -z "$HF_TOKEN" ];
+then
+	echo "HF_TOKEN is not set. Please manually add it to the file config/includes.chroot_before_packages/etc/HF_TOKEN, or rerun this command.";
+else
+	echo "HF_TOKEN=$HF_TOKEN" > config/includes.chroot_before_packages/etc/HF_TOKEN;
+fi
+

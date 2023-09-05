@@ -1,0 +1,43 @@
+#!/bin/sh
+
+set -e
+
+echo "Installing TUI and dependencies..."
+su - whisper -c 'source bin/activate; pip3 install git+https://github.com/janinge/live-wspsr-tui.git'
+
+cd /home/whisper/
+mkdir -p .config bin
+cat > .config/alacritty.yml <<'EOF'
+window:
+  decorations: none
+  startup_mode: Fullscreen
+
+scrolling:
+  history: 1000
+
+font:
+  size: 12.0
+
+live_config_reload: false
+
+shell:
+  program: /home/whisper/bin/whisper
+  args:
+    - /media
+
+EOF
+
+cat > bin/whisper <<'EOF'
+#!/usr/bin/bash
+
+while [ true ];
+do
+/home/whisper/bin/wspsr-tui $@
+echo "Press any key to restart Whisper TUI..."
+read -r -n1 key
+done
+
+EOF
+
+chmod +x bin/whisper
+
